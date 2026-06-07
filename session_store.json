@@ -18,5 +18,15 @@
     "model": "gemini-2.5-flash",
     "skip_permissions": true,
     "use_sandbox": false
+  },
+  "C0B8U3ZGE7L_1780821024.352679": {
+    "workspace": "C:\\Users\\admin\\slack_workspaces\\proj_1780821025_2858a241",
+    "conversation_id": "slack_C0B8U3ZGE7L_1780821024_352679",
+    "created_at": 1780821025.94462,
+    "last_active": 1780821026.2962282,
+    "active_task": "hello!",
+    "model": "gemini-2.5-flash",
+    "skip_permissions": true,
+    "use_sandbox": false
   }
 }

@@ -217,20 +217,42 @@ def run_agent_in_background(session_key, prompt, say, thread_ts):
 
     logger.info(f"Starting agent process: {' '.join(args)} in Cwd: {workspace}")
 
-    try:
-        proc = subprocess.Popen(
-            args,
-            cwd=workspace,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            encoding="utf-8"
-        )
-        active_processes[session_key] = proc
+    # Create temp files for stdout/stderr in the workspace directory to prevent pipe descriptor hangs on Windows
+    stdout_file = os.path.join(workspace, f"stdout_{session_key.replace('.', '_')}.log")
+    stderr_file = os.path.join(workspace, f"stderr_{session_key.replace('.', '_')}.log")
 
-        # Wait for the process to complete in this background thread
-        stdout, stderr = proc.communicate()
-        
+    try:
+        with open(stdout_file, "w", encoding="utf-8") as out_f, open(stderr_file, "w", encoding="utf-8") as err_f:
+            proc = subprocess.Popen(
+                args,
+                cwd=workspace,
+                stdout=out_f,
+                stderr=err_f,
+                stdin=subprocess.DEVNULL
+            )
+            active_processes[session_key] = proc
+            
+            # Wait for process exit (this will never hang on grandfather descriptor pipe EOFs)
+            proc.wait()
+
+        # Read outputs from temp logs
+        stdout = ""
+        stderr = ""
+        if os.path.exists(stdout_file):
+            try:
+                with open(stdout_file, "r", encoding="utf-8") as f:
+                    stdout = f.read()
+                os.remove(stdout_file)
+            except Exception:
+                pass
+        if os.path.exists(stderr_file):
+            try:
+                with open(stderr_file, "r", encoding="utf-8") as f:
+                    stderr = f.read()
+                os.remove(stderr_file)
+            except Exception:
+                pass
+
         # Clear active process state
         active_processes.pop(session_key, None)
         
