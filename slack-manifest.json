@@ -27,65 +27,65 @@
         "usage_hint": "[subcommand] [args]"
       },
       {
-        "command": "/help",
+        "command": "/ag-help",
         "description": "Show available commands and usage information",
         "should_escape": false,
         "url": "https://antigravity-agent.local/slack/commands"
       },
       {
-        "command": "/new",
+        "command": "/ag-new",
         "description": "Start a new session (fresh session ID + history)",
         "should_escape": false,
         "url": "https://antigravity-agent.local/slack/commands",
         "usage_hint": "[name]"
       },
       {
-        "command": "/reset",
-        "description": "Alias for /new — Start a new session (fresh session ID + history)",
+        "command": "/ag-reset",
+        "description": "Alias for /ag-new — Start a new session (fresh session ID + history)",
         "should_escape": false,
         "url": "https://antigravity-agent.local/slack/commands",
         "usage_hint": "[name]"
       },
       {
-        "command": "/stop",
+        "command": "/ag-stop",
         "description": "Kill all running background processes for this session",
         "should_escape": false,
         "url": "https://antigravity-agent.local/slack/commands"
       },
       {
-        "command": "/status",
+        "command": "/ag-status",
         "description": "Show workspace directory, conversation ID, and execution status",
         "should_escape": false,
         "url": "https://antigravity-agent.local/slack/commands"
       },
       {
-        "command": "/workspace",
+        "command": "/ag-workspace",
         "description": "Set or show workspace path for this session",
         "should_escape": false,
         "url": "https://antigravity-agent.local/slack/commands",
         "usage_hint": "[path]"
       },
       {
-        "command": "/model",
+        "command": "/ag-model",
         "description": "Switch the Gemini model for this session",
         "should_escape": false,
         "url": "https://antigravity-agent.local/slack/commands",
         "usage_hint": "[model_name]"
       },
       {
-        "command": "/yolo",
+        "command": "/ag-yolo",
         "description": "Toggle YOLO mode (skip all command approvals)",
         "should_escape": false,
         "url": "https://antigravity-agent.local/slack/commands"
       },
       {
-        "command": "/sandbox",
+        "command": "/ag-sandbox",
         "description": "Toggle sandbox mode (run tasks in restricted sandbox)",
         "should_escape": false,
         "url": "https://antigravity-agent.local/slack/commands"
       },
       {
-        "command": "/version",
+        "command": "/ag-version",
         "description": "Show Antigravity Agent version",
         "should_escape": false,
         "url": "https://antigravity-agent.local/slack/commands"

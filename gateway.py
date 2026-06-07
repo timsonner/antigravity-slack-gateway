@@ -164,15 +164,15 @@ def get_help_text():
         "⚡ *Antigravity Slack Gateway* ⚡\n\n"
         "I am your autonomous agentic coding assistant, powered by Google Gemini.\n\n"
         "*Commands (Slack Slash commands or thread prefix `!`):*\n"
-        "• `/help` or `!help` - Show this usage message\n"
-        "• `/new` / `/reset` or `!new` / `!reset` - Reset conversation history for this session\n"
-        "• `/status` or `!status` - Show workspace directory, conversation ID, and execution status\n"
-        "• `/workspace [path]` or `!workspace [path]` - Map this session to a specific directory (e.g. `/workspace /path/to/project`)\n"
-        "• `/stop` or `!stop` - Terminate any active task currently executing in this session\n"
-        "• `/model [name]` or `!model [name]` - Switch model (e.g., `gemini-2.5-pro`, `gemini-2.5-flash`)\n"
-        "• `/yolo` or `!yolo` - Toggle YOLO mode (skip command safety verification prompts)\n"
-        "• `/sandbox` or `!sandbox` - Toggle restricted terminal sandbox mode\n"
-        "• `/version` or `!version` - Show the local Antigravity binary version\n\n"
+        "• `/ag-help` or `!help` - Show this usage message\n"
+        "• `/ag-new` / `/ag-reset` or `!new` / `!reset` - Reset conversation history for this session\n"
+        "• `/ag-status` or `!status` - Show workspace directory, conversation ID, and execution status\n"
+        "• `/ag-workspace [path]` or `!workspace [path]` - Map this session to a specific directory (e.g. `/workspace /path/to/project`)\n"
+        "• `/ag-stop` or `!stop` - Terminate any active task currently executing in this session\n"
+        "• `/ag-model [name]` or `!model [name]` - Switch model (e.g., `gemini-2.5-pro`, `gemini-2.5-flash`)\n"
+        "• `/ag-yolo` or `!yolo` - Toggle YOLO mode (skip command safety verification prompts)\n"
+        "• `/ag-sandbox` or `!sandbox` - Toggle restricted terminal sandbox mode\n"
+        "• `/ag-version` or `!version` - Show the local Antigravity binary version\n\n"
         "*Interaction Rules:*\n"
         "- In channels, `@mention` me or use the `/antigravity <prompt>` command to start a thread. Within that thread, you can reply *without* pings.\n"
         "- In Direct Messages (DMs), simply message me without any mentions.\n"
@@ -388,52 +388,52 @@ def handle_command_string(command_name, args_str, user_id, channel_id, thread_ts
         say(text=f"Unknown command: `{command_name}`. Type `/help` for list of commands.", thread_ts=thread_ts)
 
 # --- Slack Command Handlers (Slash commands) ---
-@app.command("/help")
+@app.command("/ag-help")
 def slash_help(ack, body, say):
     ack()
     handle_command_string("help", "", body.get("user_id"), body.get("channel_id"), body.get("thread_ts"), say)
 
-@app.command("/new")
+@app.command("/ag-new")
 def slash_new(ack, body, say):
     ack()
     handle_command_string("new", "", body.get("user_id"), body.get("channel_id"), body.get("thread_ts"), say)
 
-@app.command("/reset")
+@app.command("/ag-reset")
 def slash_reset(ack, body, say):
     ack()
     handle_command_string("reset", "", body.get("user_id"), body.get("channel_id"), body.get("thread_ts"), say)
 
-@app.command("/status")
+@app.command("/ag-status")
 def slash_status(ack, body, say):
     ack()
     handle_command_string("status", "", body.get("user_id"), body.get("channel_id"), body.get("thread_ts"), say)
 
-@app.command("/workspace")
+@app.command("/ag-workspace")
 def slash_workspace(ack, body, say):
     ack()
     handle_command_string("workspace", body.get("text", ""), body.get("user_id"), body.get("channel_id"), body.get("thread_ts"), say)
 
-@app.command("/stop")
+@app.command("/ag-stop")
 def slash_stop(ack, body, say):
     ack()
     handle_command_string("stop", "", body.get("user_id"), body.get("channel_id"), body.get("thread_ts"), say)
 
-@app.command("/model")
+@app.command("/ag-model")
 def slash_model(ack, body, say):
     ack()
     handle_command_string("model", body.get("text", ""), body.get("user_id"), body.get("channel_id"), body.get("thread_ts"), say)
 
-@app.command("/yolo")
+@app.command("/ag-yolo")
 def slash_yolo(ack, body, say):
     ack()
     handle_command_string("yolo", "", body.get("user_id"), body.get("channel_id"), body.get("thread_ts"), say)
 
-@app.command("/sandbox")
+@app.command("/ag-sandbox")
 def slash_sandbox(ack, body, say):
     ack()
     handle_command_string("sandbox", "", body.get("user_id"), body.get("channel_id"), body.get("thread_ts"), say)
 
-@app.command("/version")
+@app.command("/ag-version")
 def slash_version(ack, body, say):
     ack()
     handle_command_string("version", "", body.get("user_id"), body.get("channel_id"), body.get("thread_ts"), say)
