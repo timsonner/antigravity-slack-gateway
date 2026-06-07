@@ -6,6 +6,7 @@ import threading
 import time
 import uuid
 import json
+import re
 from dotenv import load_dotenv
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
@@ -103,7 +104,10 @@ def get_session(channel_id, thread_ts=None):
             "conversation_id": conv_id,
             "created_at": time.time(),
             "last_active": time.time(),
-            "active_task": None
+            "active_task": None,
+            "model": "gemini-2.5-flash",
+            "skip_permissions": SKIP_PERMISSIONS,
+            "use_sandbox": USE_SANDBOX
         }
         save_sessions(sessions)
         logger.info(f"Created new session {key} at {workspace_path} with conversation_id {conv_id}")
@@ -161,12 +165,16 @@ def get_help_text():
         "I am your autonomous agentic coding assistant, powered by Google Gemini.\n\n"
         "*Commands (Slack Slash commands or thread prefix `!`):*\n"
         "• `/help` or `!help` - Show this usage message\n"
-        "• `/new` or `!new` - Reset conversation history for this session\n"
+        "• `/new` / `/reset` or `!new` / `!reset` - Reset conversation history for this session\n"
         "• `/status` or `!status` - Show workspace directory, conversation ID, and execution status\n"
         "• `/workspace [path]` or `!workspace [path]` - Map this session to a specific directory (e.g. `/workspace C:\\Users\\admin\\app`)\n"
-        "• `/stop` or `!stop` - Terminate any active task currently executing in this session\n\n"
+        "• `/stop` or `!stop` - Terminate any active task currently executing in this session\n"
+        "• `/model [name]` or `!model [name]` - Switch model (e.g., `gemini-2.5-pro`, `gemini-2.5-flash`)\n"
+        "• `/yolo` or `!yolo` - Toggle YOLO mode (skip command safety verification prompts)\n"
+        "• `/sandbox` or `!sandbox` - Toggle restricted terminal sandbox mode\n"
+        "• `/version` or `!version` - Show the local Antigravity binary version\n\n"
         "*Interaction Rules:*\n"
-        "- In channels, `@mention` me to start a thread. Within that thread, you can reply *without* pings.\n"
+        "- In channels, `@mention` me or use the `/antigravity <prompt>` command to start a thread. Within that thread, you can reply *without* pings.\n"
         "- In Direct Messages (DMs), simply message me without any mentions.\n"
         "- Since Slack disables slash commands in threads, use the `!` prefix inside threads (e.g., `!status`)."
     )
@@ -184,18 +192,22 @@ def run_agent_in_background(session_key, prompt, say, thread_ts):
     session = sessions[session_key]
     workspace = session["workspace"]
     conv_id = session["conversation_id"]
+    model = session.get("model", "gemini-2.5-flash")
+    skip_perm = session.get("skip_permissions", SKIP_PERMISSIONS)
+    sandbox_mode = session.get("use_sandbox", USE_SANDBOX)
 
     # Build process arguments
     args = [
         ANTIGRAVITY_BIN,
         "--conversation", conv_id,
         "--add-dir", workspace,
+        "--model", model,
         "--print", prompt
     ]
 
-    if SKIP_PERMISSIONS:
+    if skip_perm:
         args.append("--dangerously-skip-permissions")
-    if USE_SANDBOX:
+    if sandbox_mode:
         args.append("--sandbox")
 
     # Update active task state
@@ -262,7 +274,7 @@ def handle_command_string(command_name, args_str, user_id, channel_id, thread_ts
     if command_name == "help":
         say(text=get_help_text(), thread_ts=thread_ts)
         
-    elif command_name == "new":
+    elif command_name in ["new", "reset"]:
         new_conv = reset_session_conversation(session_key)
         say(
             text=f"🔄 *Conversation reset.* A new conversation session has been initialized. Workspace: `{session['workspace']}`.",
@@ -272,11 +284,17 @@ def handle_command_string(command_name, args_str, user_id, channel_id, thread_ts
     elif command_name == "status":
         is_running = session_key in active_processes
         status_text = "🟢 Running active task" if is_running else "⚪ Idle"
+        current_model = session.get("model", "gemini-2.5-flash")
+        skip_perm = session.get("skip_permissions", SKIP_PERMISSIONS)
+        sandbox_mode = session.get("use_sandbox", USE_SANDBOX)
         say(
             text=(
                 f"📊 *Antigravity Session Status*\n"
                 f"📂 *Workspace:* `{session['workspace']}`\n"
                 f"🆔 *Conversation ID:* `{session['conversation_id']}`\n"
+                f"🤖 *Active Model:* `{current_model}`\n"
+                f"⚡ *YOLO Mode:* `{skip_perm}`\n"
+                f"🛡️ *Sandbox Mode:* `{sandbox_mode}`\n"
                 f"⚙️ *Status:* {status_text}"
             ),
             thread_ts=thread_ts
@@ -297,9 +315,7 @@ def handle_command_string(command_name, args_str, user_id, channel_id, thread_ts
         proc = active_processes.get(session_key)
         if proc:
             try:
-                # Terminate process on Windows
                 proc.terminate()
-                # Verify and force-kill if needed
                 time.sleep(0.5)
                 if proc.poll() is None:
                     proc.kill()
@@ -308,6 +324,66 @@ def handle_command_string(command_name, args_str, user_id, channel_id, thread_ts
                 say(text=f"⚠️ Failed to terminate task: `{str(e)}`", thread_ts=thread_ts)
         else:
             say(text="No active task is running in this session.", thread_ts=thread_ts)
+
+    elif command_name == "model":
+        target_model = args_str.strip()
+        if not target_model:
+            current_model = session.get("model", "gemini-2.5-flash")
+            say(
+                text=(
+                    f"🤖 *Current model:* `{current_model}`\n"
+                    f"To switch models, run `/model [name]` with one of the following:\n"
+                    f"• `gemini-2.5-flash` (default)\n"
+                    f"• `gemini-2.5-pro`\n"
+                    f"• `gemini-2.5-flash-thinking`"
+                ),
+                thread_ts=thread_ts
+            )
+        else:
+            valid_models = ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.5-flash-thinking"]
+            if target_model not in valid_models:
+                say(text=f"❌ Invalid model. Please select from: {', '.join(valid_models)}", thread_ts=thread_ts)
+            else:
+                sessions = load_sessions()
+                if session_key in sessions:
+                    sessions[session_key]["model"] = target_model
+                    save_sessions(sessions)
+                    say(text=f"🤖 Model switched to `{target_model}` for this session.", thread_ts=thread_ts)
+
+    elif command_name == "yolo":
+        sessions = load_sessions()
+        if session_key in sessions:
+            current_yolo = sessions[session_key].get("skip_permissions", SKIP_PERMISSIONS)
+            new_yolo = not current_yolo
+            sessions[session_key]["skip_permissions"] = new_yolo
+            save_sessions(sessions)
+            status_yolo = "Enabled (agent will skip command approvals)" if new_yolo else "Disabled (agent will prompt for approvals)"
+            say(text=f"⚡ *YOLO Mode:* {status_yolo}", thread_ts=thread_ts)
+
+    elif command_name == "sandbox":
+        sessions = load_sessions()
+        if session_key in sessions:
+            current_sandbox = sessions[session_key].get("use_sandbox", USE_SANDBOX)
+            new_sandbox = not current_sandbox
+            sessions[session_key]["use_sandbox"] = new_sandbox
+            save_sessions(sessions)
+            status_sandbox = "Enabled (restricted terminal sandbox)" if new_sandbox else "Disabled (unrestricted local access)"
+            say(text=f"🛡️ *Sandbox Mode:* {status_sandbox}", thread_ts=thread_ts)
+
+    elif command_name == "version":
+        try:
+            res = subprocess.run(
+                [ANTIGRAVITY_BIN, "version"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding="utf-8"
+            )
+            version_str = res.stdout.strip() if res.returncode == 0 else "Unknown"
+            say(text=f"ℹ️ *Antigravity Agent version:* `{version_str}`", thread_ts=thread_ts)
+        except Exception as e:
+            say(text=f"❌ Failed to fetch version: `{str(e)}`", thread_ts=thread_ts)
+
     else:
         say(text=f"Unknown command: `{command_name}`. Type `/help` for list of commands.", thread_ts=thread_ts)
 
@@ -321,6 +397,11 @@ def slash_help(ack, body, say):
 def slash_new(ack, body, say):
     ack()
     handle_command_string("new", "", body.get("user_id"), body.get("channel_id"), body.get("thread_ts"), say)
+
+@app.command("/reset")
+def slash_reset(ack, body, say):
+    ack()
+    handle_command_string("reset", "", body.get("user_id"), body.get("channel_id"), body.get("thread_ts"), say)
 
 @app.command("/status")
 def slash_status(ack, body, say):
@@ -337,6 +418,54 @@ def slash_stop(ack, body, say):
     ack()
     handle_command_string("stop", "", body.get("user_id"), body.get("channel_id"), body.get("thread_ts"), say)
 
+@app.command("/model")
+def slash_model(ack, body, say):
+    ack()
+    handle_command_string("model", body.get("text", ""), body.get("user_id"), body.get("channel_id"), body.get("thread_ts"), say)
+
+@app.command("/yolo")
+def slash_yolo(ack, body, say):
+    ack()
+    handle_command_string("yolo", "", body.get("user_id"), body.get("channel_id"), body.get("thread_ts"), say)
+
+@app.command("/sandbox")
+def slash_sandbox(ack, body, say):
+    ack()
+    handle_command_string("sandbox", "", body.get("user_id"), body.get("channel_id"), body.get("thread_ts"), say)
+
+@app.command("/version")
+def slash_version(ack, body, say):
+    ack()
+    handle_command_string("version", "", body.get("user_id"), body.get("channel_id"), body.get("thread_ts"), say)
+
+@app.command("/antigravity")
+def slash_antigravity(ack, body, say):
+    ack()
+    user = body.get("user_id")
+    text = body.get("text", "").strip()
+    channel = body.get("channel_id")
+    thread_ts = body.get("thread_ts")
+    
+    if not text:
+        say(text="Please provide a prompt to execute. Example: `/antigravity code a hello-world server`.", thread_ts=thread_ts)
+        return
+        
+    session_key, session = get_session(channel, thread_ts)
+    if not check_auth(user, say, thread_ts):
+        return
+        
+    if session_key in active_processes:
+        say(text="⚠️ An active task is already executing in this session.", thread_ts=thread_ts)
+        return
+        
+    say(text=f"🤖 Working on it... (Workspace: `{session['workspace']}`)", thread_ts=thread_ts)
+    t = threading.Thread(
+        target=run_agent_in_background,
+        args=(session_key, text, say, thread_ts),
+        daemon=True
+    )
+    t.start()
+
 # --- Slack Message Events (Mentions, DMs, Threads) ---
 @app.event("app_mention")
 def handle_app_mentions(event, say):
@@ -345,8 +474,6 @@ def handle_app_mentions(event, say):
     channel = event.get("channel")
     thread_ts = event.get("thread_ts") or event.get("ts")
     
-    # Strip the bot user ping from text (e.g. <@U123456>)
-    import re
     cleaned_text = re.sub(r"<@[A-Z0-9]+>", "", text).strip()
     
     # Check if text is an inline command (e.g., @Antigravity !status)
@@ -362,7 +489,6 @@ def handle_app_mentions(event, say):
     if not check_auth(user, say, thread_ts):
         return
 
-    # Check if a task is already running in this thread/session
     if session_key in active_processes:
         say(
             text="⚠️ An active task is already executing in this session. Please wait for it to complete or run `/stop` to abort it.",
@@ -370,13 +496,11 @@ def handle_app_mentions(event, say):
         )
         return
 
-    # Acknowledge receipt
     say(
         text=f"🤖 *Task Received.* Running in workspace: `{session['workspace']}`... ⚙️",
         thread_ts=thread_ts
     )
 
-    # Spawn agent execution in background thread
     t = threading.Thread(
         target=run_agent_in_background,
         args=(session_key, cleaned_text, say, thread_ts),
@@ -391,26 +515,18 @@ def handle_message_events(event, say):
     thread_ts = event.get("thread_ts") or event.get("ts")
     user = event.get("user")
 
-    # Ignore bot messages and empty strings
     if event.get("bot_id") or event.get("subtype") == "bot_message" or not text:
         return
 
-    # Direct Messages (DMs)
     is_dm = channel.startswith("D")
     
-    # Threads in channels:
-    # If this is a reply inside a thread where a session has already been initialized
-    # We check if there's an active session mapping in our store.
     session_key = f"{channel}_{event.get('thread_ts')}" if event.get("thread_ts") else None
     sessions = load_sessions()
-    
     is_active_thread_reply = session_key and session_key in sessions
 
     if not is_dm and not is_active_thread_reply:
-        # Ignore regular channel chat messages unless they are active thread replies
         return
 
-    # Handle inline commands like !status, !help, !new
     if text.startswith("!"):
         parts = text[1:].split(" ", 1)
         cmd_name = parts[0]
@@ -418,7 +534,6 @@ def handle_message_events(event, say):
         handle_command_string(cmd_name, args_str, user, channel, thread_ts, say)
         return
 
-    # Normal prompt message to be executed by the agent
     resolved_key, session = get_session(channel, event.get("thread_ts"))
     
     if not check_auth(user, say, thread_ts):
@@ -431,13 +546,11 @@ def handle_message_events(event, say):
         )
         return
 
-    # Acknowledge receipt
     say(
         text=f"🤖 Working on it... (Workspace: `{session['workspace']}`)",
         thread_ts=thread_ts
     )
 
-    # Spawn agent execution in background thread
     t = threading.Thread(
         target=run_agent_in_background,
         args=(resolved_key, text, say, thread_ts),
