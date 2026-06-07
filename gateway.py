@@ -34,12 +34,14 @@ SLACK_ALLOWED_USERS = set(
     [u.strip() for u in os.environ.get("SLACK_ALLOWED_USERS", "").split(",") if u.strip()]
 )
 
-# Resolve Antigravity binary path
-# Default: %LOCALAPPDATA%\agy\bin\agy.exe
-DEFAULT_BIN_PATH = os.path.join(
-    os.environ.get("LOCALAPPDATA", os.path.join(os.path.expanduser("~"), "AppData", "Local")),
-    "agy", "bin", "agy.exe"
-)
+# Resolve Antigravity binary or wrapper path
+# Default: look for antigravity_wrapper.py in the repository's root directory, falling back to LOCALAPPDATA
+DEFAULT_BIN_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "antigravity_wrapper.py")
+if not os.path.exists(DEFAULT_BIN_PATH):
+    DEFAULT_BIN_PATH = os.path.join(
+        os.environ.get("LOCALAPPDATA", os.path.join(os.path.expanduser("~"), "AppData", "Local")),
+        "agy", "bin", "antigravity_wrapper.py"
+    )
 ANTIGRAVITY_BIN = os.environ.get("ANTIGRAVITY_BIN", DEFAULT_BIN_PATH)
 
 # Config options for safety / skipping permission dialogs
@@ -172,8 +174,9 @@ def get_help_text():
         "• `/ag-stop` or `!stop` - Terminate any active task currently executing in this session\n"
         "• `/ag-model [name]` or `!model [name]` - Switch model (e.g., `gemini-3.5-pro`, `gemini-3.5-flash`)\n"
         "• `/ag-yolo` or `!yolo` - Toggle YOLO mode (skip command safety verification prompts)\n"
-        "• `/ag-sandbox` or `!sandbox` - Toggle restricted terminal sandbox mode\n"
-        "• `/ag-version` or `!version` - Show the local Antigravity binary version\n\n"
+        "• `/ag-sandbox` or `!sandbox` - Toggle restricted terminal sandbox mode\n"\
+        "• `/ag-version` or `!version` - Show the local Antigravity binary version\n"\
+        "• `!alias [name]` - Alias the active thread conversation to a human-readable name\n\n"\
         "*Interaction Rules:*\n"
         "- In channels, `@mention` me or use the `/antigravity <prompt>` command to start a thread. Within that thread, you can reply *without* pings.\n"
         "- In Direct Messages (DMs), simply message me without any mentions.\n"
@@ -198,13 +201,17 @@ def run_agent_in_background(session_key, prompt, say, thread_ts):
     sandbox_mode = session.get("use_sandbox", USE_SANDBOX)
 
     # Build process arguments
-    args = [
-        ANTIGRAVITY_BIN,
+    if ANTIGRAVITY_BIN.endswith(".py"):
+        args = [sys.executable, ANTIGRAVITY_BIN]
+    else:
+        args = [ANTIGRAVITY_BIN]
+
+    args.extend([
         "--conversation", conv_id,
         "--add-dir", workspace,
         "--model", model,
         "--print", prompt
-    ]
+    ])
 
     if skip_perm:
         args.append("--dangerously-skip-permissions")
@@ -468,8 +475,9 @@ def handle_command_string(command_name, args_str, user_id, channel_id, thread_ts
 
     elif command_name == "version":
         try:
+            cmd = [sys.executable, ANTIGRAVITY_BIN] if ANTIGRAVITY_BIN.endswith(".py") else [ANTIGRAVITY_BIN]
             res = subprocess.run(
-                [ANTIGRAVITY_BIN, "--version"],
+                cmd + ["--version"],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
@@ -480,6 +488,33 @@ def handle_command_string(command_name, args_str, user_id, channel_id, thread_ts
             say(text=f"ℹ️ *Antigravity Agent version:* `{version_str}`", thread_ts=thread_ts)
         except Exception as e:
             say(text=f"❌ Failed to fetch version: `{str(e)}`", thread_ts=thread_ts)
+
+    elif command_name == "alias":
+        alias_name = args_str.strip()
+        if not alias_name:
+            say(text="❌ Please specify an alias name: `!alias [name]`", thread_ts=thread_ts)
+        else:
+            conv_id = session.get("conversation_id")
+            if not conv_id:
+                say(text="❌ No conversation is active to alias.", thread_ts=thread_ts)
+            else:
+                try:
+                    aliases_dir = os.path.join(os.path.expanduser("~"), ".gemini", "antigravity")
+                    os.makedirs(aliases_dir, exist_ok=True)
+                    aliases_file = os.path.join(aliases_dir, "session_aliases.json")
+                    
+                    aliases = {}
+                    if os.path.exists(aliases_file):
+                        with open(aliases_file, "r", encoding="utf-8") as f:
+                            aliases = json.load(f)
+                            
+                    aliases[alias_name] = conv_id
+                    with open(aliases_file, "w", encoding="utf-8") as f:
+                        json.dump(aliases, f, indent=2)
+                        
+                    say(text=f"🏷️ *Session Alias Added:* Aliased `{alias_name}` to active conversation ID `{conv_id}`.", thread_ts=thread_ts)
+                except Exception as e:
+                    say(text=f"❌ Failed to write alias: `{str(e)}`", thread_ts=thread_ts)
 
     else:
         say(text=f"Unknown command: `{command_name}`. Type `/help` for list of commands.", thread_ts=thread_ts)

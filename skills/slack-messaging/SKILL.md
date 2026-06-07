@@ -89,7 +89,3 @@ When Antigravity attempts to run shell commands in any thread (and YOLO mode is 
 - **Enable YOLO Mode (Disable prompts):** Run `!yolo` inside the Slack thread.
 - **Disable YOLO Mode (Enable prompts):** Run `!yolo` again.
 - **Handling Requests:** Click **Approve 🟢** to let the tool execute, or **Deny 🔴** to reject it.
-
-
-
-
