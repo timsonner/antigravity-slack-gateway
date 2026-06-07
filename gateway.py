@@ -106,7 +106,7 @@ def get_session(channel_id, thread_ts=None):
             "created_at": time.time(),
             "last_active": time.time(),
             "active_task": None,
-            "model": "gemini-2.5-flash",
+            "model": "gemini-3.5-flash",
             "skip_permissions": SKIP_PERMISSIONS,
             "use_sandbox": USE_SANDBOX
         }
@@ -170,7 +170,7 @@ def get_help_text():
         "• `/ag-status` or `!status` - Show workspace directory, conversation ID, and execution status\n"
         "• `/ag-workspace [path]` or `!workspace [path]` - Map this session to a specific directory (e.g. `/workspace /path/to/project`)\n"
         "• `/ag-stop` or `!stop` - Terminate any active task currently executing in this session\n"
-        "• `/ag-model [name]` or `!model [name]` - Switch model (e.g., `gemini-2.5-pro`, `gemini-2.5-flash`)\n"
+        "• `/ag-model [name]` or `!model [name]` - Switch model (e.g., `gemini-3.5-pro`, `gemini-3.5-flash`)\n"
         "• `/ag-yolo` or `!yolo` - Toggle YOLO mode (skip command safety verification prompts)\n"
         "• `/ag-sandbox` or `!sandbox` - Toggle restricted terminal sandbox mode\n"
         "• `/ag-version` or `!version` - Show the local Antigravity binary version\n\n"
@@ -193,7 +193,7 @@ def run_agent_in_background(session_key, prompt, say, thread_ts):
     session = sessions[session_key]
     workspace = session["workspace"]
     conv_id = session["conversation_id"]
-    model = session.get("model", "gemini-2.5-flash")
+    model = session.get("model", "gemini-3.5-flash")
     skip_perm = session.get("skip_permissions", SKIP_PERMISSIONS)
     sandbox_mode = session.get("use_sandbox", USE_SANDBOX)
 
@@ -364,7 +364,7 @@ def handle_command_string(command_name, args_str, user_id, channel_id, thread_ts
     elif command_name == "status":
         is_running = session_key in active_processes
         status_text = "🟢 Running active task" if is_running else "⚪ Idle"
-        current_model = session.get("model", "gemini-2.5-flash")
+        current_model = session.get("model", "gemini-3.5-flash")
         skip_perm = session.get("skip_permissions", SKIP_PERMISSIONS)
         sandbox_mode = session.get("use_sandbox", USE_SANDBOX)
         say(
@@ -409,19 +409,19 @@ def handle_command_string(command_name, args_str, user_id, channel_id, thread_ts
     elif command_name == "model":
         target_model = args_str.strip()
         if not target_model:
-            current_model = session.get("model", "gemini-2.5-flash")
+            current_model = session.get("model", "gemini-3.5-flash")
             say(
                 text=(
                     f"🤖 *Current model:* `{current_model}`\n"
                     f"To switch models, run `/model [name]` with one of the following:\n"
-                    f"• `gemini-2.5-flash` (default)\n"
-                    f"• `gemini-2.5-pro`\n"
-                    f"• `gemini-2.5-flash-thinking`"
+                    f"• `gemini-3.5-flash` (default)\n"
+                    f"• `gemini-3.5-pro`\n"
+                    f"• `gemini-3.5-flash-thinking`"
                 ),
                 thread_ts=thread_ts
             )
         else:
-            valid_models = ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.5-flash-thinking"]
+            valid_models = ["gemini-3.5-flash", "gemini-3.5-pro", "gemini-3.5-flash-thinking"]
             if target_model not in valid_models:
                 say(text=f"❌ Invalid model. Please select from: {', '.join(valid_models)}", thread_ts=thread_ts)
             else:
