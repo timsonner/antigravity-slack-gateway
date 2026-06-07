@@ -218,41 +218,24 @@ def run_agent_in_background(session_key, prompt, say, thread_ts):
 
     logger.info(f"Starting agent process: {' '.join(args)} in Cwd: {workspace}")
 
-    # Create temp files for stdout/stderr in the workspace directory to prevent pipe descriptor hangs on Windows
-    stdout_file = os.path.join(workspace, f"stdout_{session_key.replace('.', '_')}.log")
-    stderr_file = os.path.join(workspace, f"stderr_{session_key.replace('.', '_')}.log")
-
     try:
-        with open(stdout_file, "w", encoding="utf-8") as out_f, open(stderr_file, "w", encoding="utf-8") as err_f:
-            proc = subprocess.Popen(
-                args,
-                cwd=workspace,
-                stdout=out_f,
-                stderr=err_f,
-                stdin=subprocess.DEVNULL
-            )
-            active_processes[session_key] = proc
-            
-            # Wait for process exit (this will never hang on grandfather descriptor pipe EOFs)
-            proc.wait()
-
-        # Read outputs from temp logs
-        stdout = ""
-        stderr = ""
-        if os.path.exists(stdout_file):
-            try:
-                with open(stdout_file, "r", encoding="utf-8") as f:
-                    stdout = f.read()
-                os.remove(stdout_file)
-            except Exception:
-                pass
-        if os.path.exists(stderr_file):
-            try:
-                with open(stderr_file, "r", encoding="utf-8") as f:
-                    stderr = f.read()
-                os.remove(stderr_file)
-            except Exception:
-                pass
+        proc = subprocess.Popen(
+            args,
+            cwd=workspace,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            stdin=subprocess.DEVNULL,
+            text=True,
+            encoding="utf-8"
+        )
+        active_processes[session_key] = proc
+        
+        try:
+            stdout, stderr = proc.communicate(timeout=300)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            stdout, stderr = proc.communicate()
+            raise Exception("Agent execution timed out after 5 minutes.")
 
         # Resolve and persist the actual UUID-based conversation ID created by agy.exe
         try:
@@ -291,6 +274,37 @@ def run_agent_in_background(session_key, prompt, say, thread_ts):
         # Build response
         if proc.returncode == 0:
             formatted_output = stdout.strip()
+            if not formatted_output:
+                # Attempt to extract the final response directly from the transcript JSONL
+                try:
+                    transcript_path = os.path.join(
+                        os.path.expanduser("~"), 
+                        ".gemini", 
+                        "antigravity-cli", 
+                        "brain", 
+                        conv_id, 
+                        ".system_generated", 
+                        "logs", 
+                        "transcript.jsonl"
+                    )
+                    if os.path.exists(transcript_path):
+                        with open(transcript_path, "r", encoding="utf-8") as tf:
+                            lines = tf.readlines()
+                        # Scan backwards for the latest model response content
+                        for line in reversed(lines):
+                            try:
+                                data = json.loads(line)
+                                if data.get("source") == "MODEL" and data.get("content"):
+                                    extracted_text = data.get("content").strip()
+                                    if extracted_text:
+                                        formatted_output = extracted_text
+                                        logger.info(f"Successfully extracted final response from transcript.jsonl: {formatted_output[:50]}...")
+                                        break
+                            except Exception:
+                                pass
+                except Exception as te:
+                    logger.error(f"Failed to parse transcript.jsonl: {te}")
+
             if not formatted_output:
                 # Check the antigravity CLI log for hidden errors (e.g. RESOURCE_EXHAUSTED)
                 hidden_error = ""
@@ -454,11 +468,12 @@ def handle_command_string(command_name, args_str, user_id, channel_id, thread_ts
     elif command_name == "version":
         try:
             res = subprocess.run(
-                [ANTIGRAVITY_BIN, "version"],
+                [ANTIGRAVITY_BIN, "--version"],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                encoding="utf-8"
+                encoding="utf-8",
+                timeout=10
             )
             version_str = res.stdout.strip() if res.returncode == 0 else "Unknown"
             say(text=f"ℹ️ *Antigravity Agent version:* `{version_str}`", thread_ts=thread_ts)
