@@ -4,7 +4,13 @@ import json
 import subprocess
 
 # Define paths
-AGY_REAL_EXE = r"C:\Users\admin\AppData\Local\agy\bin\agy.exe"
+wrapper_dir = os.path.dirname(os.path.abspath(__file__))
+AGY_REAL_EXE = os.path.join(wrapper_dir, "agy.exe")
+if not os.path.exists(AGY_REAL_EXE):
+    AGY_REAL_EXE = os.path.join(
+        os.environ.get("LOCALAPPDATA", os.path.join(os.path.expanduser("~"), "AppData", "Local")),
+        "agy", "bin", "agy.exe"
+    )
 GEMINI_DIR = os.path.join(os.path.expanduser("~"), ".gemini")
 ALIASES_DIR = os.path.join(GEMINI_DIR, "antigravity")
 ALIASES_FILE = os.path.join(ALIASES_DIR, "session_aliases.json")
