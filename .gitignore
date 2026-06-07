@@ -20,3 +20,5 @@ __pycache__/
 .idea/
 
 session_store.json
+gateway.txt
+__pycache__
