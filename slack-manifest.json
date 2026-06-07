@@ -1,0 +1,79 @@
+{
+  "display_information": {
+    "name": "Antigravity Agent",
+    "description": "Autonomous Coding Assistant powered by Google Gemini",
+    "background_color": "#1e1e2e",
+    "long_description": "Antigravity is your team's autonomous coding assistant. Run tests, generate features, and debug codebases right from Slack."
+  },
+  "features": {
+    "bot_user": {
+      "display_name": "Antigravity",
+      "always_online": true
+    },
+    "slash_commands": [
+      {
+        "command": "/help",
+        "description": "Show help and usage information for Antigravity",
+        "usage_hint": "",
+        "should_escape": false
+      },
+      {
+        "command": "/new",
+        "description": "Start a new conversation session (resets context)",
+        "usage_hint": "",
+        "should_escape": false
+      },
+      {
+        "command": "/stop",
+        "description": "Terminate the currently running command or task",
+        "usage_hint": "",
+        "should_escape": false
+      },
+      {
+        "command": "/status",
+        "description": "Show the status of active background tasks and current workspace",
+        "usage_hint": "",
+        "should_escape": false
+      },
+      {
+        "command": "/workspace",
+        "description": "Set or show the workspace directory mapped to the current channel/thread",
+        "usage_hint": "[path]",
+        "should_escape": false
+      }
+    ]
+  },
+  "oauth_config": {
+    "scopes": {
+      "bot": [
+        "chat:write",
+        "app_mentions:read",
+        "channels:history",
+        "channels:read",
+        "groups:history",
+        "groups:read",
+        "im:history",
+        "im:read",
+        "im:write",
+        "users:read",
+        "files:read",
+        "files:write"
+      ]
+    }
+  },
+  "settings": {
+    "event_subscriptions": {
+      "bot_events": [
+        "message.im",
+        "message.channels",
+        "message.groups",
+        "app_mention"
+      ]
+    },
+    "interactivity": {
+      "is_enabled": true
+    },
+    "org_deploy_enabled": false,
+    "socket_mode_enabled": true
+  }
+}
