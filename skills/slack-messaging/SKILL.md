@@ -1,6 +1,13 @@
 ---
 name: slack-messaging
 description: Send a message or notification to a Slack channel or thread using the gateway's configured tokens.
+version: 1.0.0
+author: Timsonner
+license: MIT
+metadata:
+  hermes:
+    tags: [slack, gateway, messaging, notifications, multi-agent]
+    related_skills: [multi-agent-coordination, cli-wrapper-design-and-debugging]
 ---
 
 # Slack Messaging Skill
