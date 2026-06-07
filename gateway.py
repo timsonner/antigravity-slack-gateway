@@ -253,6 +253,7 @@ def run_agent_in_background(session_key, prompt, say, thread_ts):
                         if session_key in sessions:
                             sessions[session_key]["conversation_id"] = conv_uuid
                             save_sessions(sessions)
+                            conv_id = conv_uuid  # Update local variable so downstream transcript parser uses the new UUID path
                             logger.info(f"Successfully mapped and saved persistent conversation ID {conv_uuid} for session {session_key}")
                         break
         except Exception as le:
