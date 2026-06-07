@@ -27,7 +27,7 @@ load_dotenv()
 
 SLACK_BOT_TOKEN = os.environ.get("SLACK_BOT_TOKEN")
 SLACK_APP_TOKEN = os.environ.get("SLACK_APP_TOKEN")
-WORKSPACE_ROOT = os.environ.get("ANTIGRAVITY_WORKSPACE_ROOT", r"C:\Users\admin")
+WORKSPACE_ROOT = os.environ.get("ANTIGRAVITY_WORKSPACE_ROOT", os.path.expanduser("~"))
 
 # Parse allowed users from comma-separated string
 SLACK_ALLOWED_USERS = set(
@@ -35,9 +35,9 @@ SLACK_ALLOWED_USERS = set(
 )
 
 # Resolve Antigravity binary path
-# Default: C:\Users\admin\AppData\Local\agy\bin\antigravity.bat
+# Default: %LOCALAPPDATA%\agy\bin\antigravity.bat
 DEFAULT_BIN_PATH = os.path.join(
-    os.environ.get("LOCALAPPDATA", r"C:\Users\admin\AppData\Local"),
+    os.environ.get("LOCALAPPDATA", os.path.join(os.path.expanduser("~"), "AppData", "Local")),
     "agy", "bin", "antigravity.bat"
 )
 ANTIGRAVITY_BIN = os.environ.get("ANTIGRAVITY_BIN", DEFAULT_BIN_PATH)
@@ -89,7 +89,7 @@ def get_session(channel_id, thread_ts=None):
         
     sessions = load_sessions()
     if key not in sessions:
-        # Generate a unique workspace directory under C:\Users\admin\slack_workspaces
+        # Generate a unique workspace directory under the workspace root
         unique_id = str(uuid.uuid4())[:8]
         ts_str = str(int(time.time()))
         folder_name = f"proj_{ts_str}_{unique_id}"
@@ -167,7 +167,7 @@ def get_help_text():
         "• `/help` or `!help` - Show this usage message\n"
         "• `/new` / `/reset` or `!new` / `!reset` - Reset conversation history for this session\n"
         "• `/status` or `!status` - Show workspace directory, conversation ID, and execution status\n"
-        "• `/workspace [path]` or `!workspace [path]` - Map this session to a specific directory (e.g. `/workspace C:\\Users\\admin\\app`)\n"
+        "• `/workspace [path]` or `!workspace [path]` - Map this session to a specific directory (e.g. `/workspace /path/to/project`)\n"
         "• `/stop` or `!stop` - Terminate any active task currently executing in this session\n"
         "• `/model [name]` or `!model [name]` - Switch model (e.g., `gemini-2.5-pro`, `gemini-2.5-flash`)\n"
         "• `/yolo` or `!yolo` - Toggle YOLO mode (skip command safety verification prompts)\n"

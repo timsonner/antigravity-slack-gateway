@@ -47,7 +47,7 @@ Edit the newly created `.env` file:
 ```env
 SLACK_BOT_TOKEN=xoxb-your-bot-token
 SLACK_APP_TOKEN=xapp-your-app-token
-SLACK_ALLOWED_USERS=U01ABC2DEF3              # Comma-separated list of Slack user IDs
+SLACK_ALLOWED_USERS=                         # Comma-separated list of Slack Member IDs
 SLACK_HOME_CHANNEL=                          # Default channel for system messages (optional)
 SLACK_HOME_CHANNEL_NAME=general
 ```
