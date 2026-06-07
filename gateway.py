@@ -655,6 +655,214 @@ def handle_message_events(event, say):
     )
     t.start()
 
+# --- Interactive Hook Approval Handlers ---
+
+def update_pending_approval(approval_id, status, decision):
+    """
+    Finds and updates a pending approval inside session_store.json.
+    Returns (tool_name, tool_input, conversation_id) if found, else (None, None, None).
+    """
+    session_store_file = "session_store.json"
+    if not os.path.exists(session_store_file):
+        return None, None, None
+        
+    try:
+        with open(session_store_file, "r") as f:
+            sessions = json.load(f)
+            
+        for key, session_data in sessions.items():
+            pending = session_data.get("pending_approvals", {})
+            if approval_id in pending:
+                pending[approval_id]["status"] = status
+                pending[approval_id]["decision"] = decision
+                
+                tool_name = pending[approval_id].get("tool_name", "")
+                tool_input = pending[approval_id].get("tool_input", {})
+                conv_id = session_data.get("conversation_id", "")
+                
+                with open(session_store_file, "w") as f:
+                    json.dump(sessions, f, indent=2)
+                return tool_name, tool_input, conv_id
+    except Exception as e:
+        logger.error(f"Failed to update pending approval in session store: {e}")
+        
+    return None, None, None
+
+@app.action("approve_once")
+def handle_approve_once(ack, body, respond):
+    """
+    Triggers when the developer clicks 'Allow Once 🟢' in Slack.
+    Updates local ledger and refreshes Slack blocks.
+    """
+    ack()
+    action = body["actions"][0]
+    approval_id = action["value"]
+    
+    # Update state ledger inside session_store.json
+    update_pending_approval(approval_id, "approved", "allow")
+
+    # Remove buttons from original Slack card
+    original_text = body["message"]["text"]
+    respond({
+        "text": f"🟢 *Allowed Once* (ID: `{approval_id}`)",
+        "blocks": [
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"🟢 *Allowed once for this execution event*\n\n{original_text}"
+                }
+            }
+        ],
+        "replace_original": True
+    })
+
+@app.action("approve_session")
+def handle_approve_session(ack, body, respond):
+    """
+    Triggers when the developer clicks 'Allow for Session ⚡' in Slack.
+    Adds the tool/command to the active thread's session allowlist.
+    """
+    ack()
+    action = body["actions"][0]
+    approval_id = action["value"]
+    session_store_file = "session_store.json"
+    
+    # Update state ledger and fetch details
+    tool_name, tool_input, conv_id = update_pending_approval(approval_id, "approved", "allow")
+
+    # Find and update the session in session_store.json
+    if conv_id and os.path.exists(session_store_file):
+        try:
+            with open(session_store_file, "r") as f:
+                sessions = json.load(f)
+            
+            # Find the session key by matching conversation_id
+            target_key = None
+            for key, session_data in sessions.items():
+                if session_data.get("conversation_id") == conv_id:
+                    target_key = key
+                    break
+                    
+            if target_key in sessions:
+                if "allowed_tools" not in sessions[target_key]:
+                    sessions[target_key]["allowed_tools"] = []
+                if "allowed_commands" not in sessions[target_key]:
+                    sessions[target_key]["allowed_commands"] = []
+                    
+                if tool_name == "run_command":
+                    cmd_line = tool_input.get("CommandLine", "")
+                    if cmd_line and cmd_line not in sessions[target_key]["allowed_commands"]:
+                        sessions[target_key]["allowed_commands"].append(cmd_line)
+                else:
+                    if tool_name and tool_name not in sessions[target_key]["allowed_tools"]:
+                        sessions[target_key]["allowed_tools"].append(tool_name)
+                        
+                with open(session_store_file, "w") as f:
+                    json.dump(sessions, f, indent=2)
+                logger.info(f"Added {tool_name} to session allowlist for session {target_key}")
+        except Exception as se:
+            logger.error(f"Failed to update session store: {se}")
+
+    # Remove buttons from original Slack card
+    original_text = body["message"]["text"]
+    respond({
+        "text": f"⚡ *Allowed for Session* (ID: `{approval_id}`)",
+        "blocks": [
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"⚡ *Allowed for the rest of this session/thread*\n\n{original_text}"
+                }
+            }
+        ],
+        "replace_original": True
+    })
+
+@app.action("approve_permanent")
+def handle_approve_permanent(ack, body, respond):
+    """
+    Triggers when the developer clicks 'Allow Permanently 🏆' in Slack.
+    Adds the tool/command to global settings.json permissions.
+    """
+    ack()
+    action = body["actions"][0]
+    approval_id = action["value"]
+    settings_file = os.path.join(os.path.expanduser("~"), ".gemini", "antigravity-cli", "settings.json")
+    
+    # Update state ledger and fetch details
+    tool_name, tool_input, _ = update_pending_approval(approval_id, "approved", "allow")
+
+    # Update global settings.json natively
+    if tool_name and os.path.exists(settings_file):
+        try:
+            with open(settings_file, "r") as sf:
+                settings = json.load(sf)
+            if "permissions" not in settings:
+                settings["permissions"] = {"allow": []}
+            if "allow" not in settings["permissions"]:
+                settings["permissions"]["allow"] = []
+                
+            if tool_name == "run_command":
+                cmd_line = tool_input.get("CommandLine", "")
+                grant = f"command({cmd_line})"
+            else:
+                target = tool_input.get("AbsolutePath") or tool_input.get("TargetFile") or "*"
+                grant = f"{tool_name}({target})"
+                
+            if grant not in settings["permissions"]["allow"]:
+                settings["permissions"]["allow"].append(grant)
+                with open(settings_file, "w") as sf:
+                    json.dump(settings, sf, indent=2)
+                logger.info(f"Added permanent native permission grant to settings.json: {grant}")
+        except Exception as sfe:
+            logger.error(f"Failed to update global settings.json: {sfe}")
+
+    # Remove buttons from original Slack card
+    original_text = body["message"]["text"]
+    respond({
+        "text": f"🏆 *Allowed Permanently* (ID: `{approval_id}`)",
+        "blocks": [
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"🏆 *Allowed permanently on this host (added to allowlist)*\n\n{original_text}"
+                }
+            }
+        ],
+        "replace_original": True
+    })
+
+@app.action("deny_tool")
+def handle_deny_action(ack, body, respond):
+    """
+    Triggers when the developer clicks 'Deny 🔴' in Slack.
+    """
+    ack()
+    action = body["actions"][0]
+    approval_id = action["value"]
+    
+    # Update state ledger inside session_store.json
+    update_pending_approval(approval_id, "denied", "deny")
+
+    # Remove buttons from original Slack card
+    original_text = body["message"]["text"]
+    respond({
+        "text": f"🔴 *Command Denied* (ID: `{approval_id}`)",
+        "blocks": [
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"🔴 *Command Execution Denied*\n\n{original_text}"
+                }
+            }
+        ],
+        "replace_original": True
+    })
+
 if __name__ == "__main__":
     logger.info("Starting Antigravity Slack Gateway in Socket Mode...")
     handler = SocketModeHandler(app, SLACK_APP_TOKEN)
