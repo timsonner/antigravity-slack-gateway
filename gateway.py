@@ -48,6 +48,7 @@ USE_SANDBOX = os.environ.get("ANTIGRAVITY_SANDBOX", "false").lower() == "true"
 
 SESSION_STORE_FILE = "session_store.json"
 active_processes = {}  # session_key -> subprocess.Popen
+stopped_processes = set()  # set of process IDs that were explicitly killed/terminated by user /stop
 
 if not SLACK_BOT_TOKEN or not SLACK_APP_TOKEN:
     logger.error("Missing SLACK_BOT_TOKEN or SLACK_APP_TOKEN in environment variables.")
@@ -253,8 +254,34 @@ def run_agent_in_background(session_key, prompt, say, thread_ts):
             except Exception:
                 pass
 
+        # Resolve and persist the actual UUID-based conversation ID created by agy.exe
+        try:
+            cache_path = os.path.join(os.path.expanduser("~"), ".gemini", "antigravity-cli", "cache", "last_conversations.json")
+            if os.path.exists(cache_path):
+                with open(cache_path, "r", encoding="utf-8") as cache_f:
+                    last_convs = json.load(cache_f)
+                
+                # Normalize workspace path for accurate lookup
+                normalized_ws = os.path.abspath(workspace).lower()
+                for ws_path, conv_uuid in last_convs.items():
+                    if os.path.abspath(ws_path).lower() == normalized_ws:
+                        # Update conversation_id in session store so we reuse it on the next turn!
+                        sessions = load_sessions()
+                        if session_key in sessions:
+                            sessions[session_key]["conversation_id"] = conv_uuid
+                            save_sessions(sessions)
+                            logger.info(f"Successfully mapped and saved persistent conversation ID {conv_uuid} for session {session_key}")
+                        break
+        except Exception as le:
+            logger.error(f"Failed to resolve persistent conversation ID: {le}")
+
         # Clear active process state
         active_processes.pop(session_key, None)
+        
+        # Check if the process was explicitly stopped by the user (/stop)
+        was_stopped = proc.pid in stopped_processes
+        if was_stopped:
+            stopped_processes.discard(proc.pid)
         
         sessions = load_sessions()
         if session_key in sessions:
@@ -263,12 +290,43 @@ def run_agent_in_background(session_key, prompt, say, thread_ts):
 
         # Build response
         if proc.returncode == 0:
-            formatted_output = stdout.strip() if stdout.strip() else "Task completed successfully, but returned no text output."
-            say(text=formatted_output, thread_ts=thread_ts)
+            formatted_output = stdout.strip()
+            if not formatted_output:
+                # Check the antigravity CLI log for hidden errors (e.g. RESOURCE_EXHAUSTED)
+                hidden_error = ""
+                cli_log_path = os.path.join(os.path.expanduser("~"), ".gemini", "antigravity-cli", "cli.log")
+                if os.path.exists(cli_log_path):
+                    try:
+                        with open(cli_log_path, "r", encoding="utf-8") as log_f:
+                            log_lines = log_f.readlines()
+                        # Scan the last 25 lines of the log for error strings
+                        for line in reversed(log_lines[-25:]):
+                            if "RESOURCE_EXHAUSTED" in line or "quota reached" in line or "Quota reached" in line:
+                                hidden_error = "RESOURCE_EXHAUSTED: Individual Gemini API quota reached. Please check Google AI Studio or wait for the quota reset."
+                                if "Resets in" in line:
+                                    resets_idx = line.find("Resets in")
+                                    hidden_error += f" {line[resets_idx:]}"
+                                break
+                            elif "not logged into Antigravity" in line or "Failed to get OAuth token" in line:
+                                hidden_error = "AUTHENTICATION_ERROR: You are not logged into Antigravity. Please run 'agy login' in the host terminal."
+                                break
+                            elif "E060" in line and "error" in line.lower():
+                                # Capture any other severe error log
+                                hidden_error = line.strip()
+                                break
+                    except Exception as le:
+                        logger.error(f"Error checking CLI log: {le}")
+                
+                if hidden_error:
+                    say(text=f"❌ *Antigravity Engine Error:* \n```\n{hidden_error}\n```", thread_ts=thread_ts)
+                else:
+                    say(text="Task completed successfully, but returned no text output.", thread_ts=thread_ts)
+            else:
+                say(text=formatted_output, thread_ts=thread_ts)
         else:
             # Check if terminated by the user (/stop)
-            if proc.returncode == -15 or proc.returncode == 1 or proc.returncode == 3221225786: # Windows process kill exit code
-                logger.info(f"Process for session {session_key} was terminated.")
+            if was_stopped:
+                logger.info(f"Process for session {session_key} was terminated by user /stop.")
             else:
                 err_msg = stderr.strip() if stderr.strip() else "Unknown error executing agent."
                 say(
@@ -337,6 +395,7 @@ def handle_command_string(command_name, args_str, user_id, channel_id, thread_ts
         proc = active_processes.get(session_key)
         if proc:
             try:
+                stopped_processes.add(proc.pid)
                 proc.terminate()
                 time.sleep(0.5)
                 if proc.poll() is None:
@@ -480,7 +539,7 @@ def slash_antigravity(ack, body, say):
         say(text="⚠️ An active task is already executing in this session.", thread_ts=thread_ts)
         return
         
-    say(text=f"🤖 *Task Received.* I am spawning an Antigravity agent in the workspace: `{session['workspace']}`. I'll post the results here shortly! ⚙️", thread_ts=thread_ts)
+    # say(text=f"🤖 *Task Received.* I am spawning an Antigravity agent in the workspace: `{session['workspace']}`. I'll post the results here shortly! ⚙️", thread_ts=thread_ts)
     t = threading.Thread(
         target=run_agent_in_background,
         args=(session_key, text, say, thread_ts),
@@ -518,10 +577,10 @@ def handle_app_mentions(event, say):
         )
         return
 
-    say(
-        text=f"🤖 *Task Received.* I am spawning an Antigravity agent in the workspace: `{session['workspace']}`. I'll post the results here shortly! ⚙️",
-        thread_ts=thread_ts
-    )
+    # say(
+    #     text=f"🤖 *Task Received.* I am spawning an Antigravity agent in the workspace: `{session['workspace']}`. I'll post the results here shortly! ⚙️",
+    #     thread_ts=thread_ts
+    # )
 
     t = threading.Thread(
         target=run_agent_in_background,
@@ -568,10 +627,10 @@ def handle_message_events(event, say):
         )
         return
 
-    say(
-        text=f"🤖 *Thinking...* I've started the agent in workspace: `{session['workspace']}`. Response will follow! ⚙️",
-        thread_ts=thread_ts
-    )
+    # say(
+    #     text=f"🤖 *Thinking...* I've started the agent in workspace: `{session['workspace']}`. Response will follow! ⚙️",
+    #     thread_ts=thread_ts
+    # )
 
     t = threading.Thread(
         target=run_agent_in_background,
