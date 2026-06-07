@@ -30,7 +30,7 @@ To register your gateway with Slack:
 
 1. Go to the [Slack App Console](https://api.slack.com/apps).
 2. Click **Create New App** -> **From an app manifest**.
-3. Select your workspace, and paste the contents of the manifest located in the design specification: `C:\Users\admin\.gemini\antigravity-cli\brain\f42ea33e-d6cc-4a2a-83ce-b67a9adecc12\antigravity_gateway_design.md`.
+3. Select your workspace, and paste the contents of the JSON manifest: [slack-manifest.json](slack-manifest.json) (located in the root of this repository).
 4. Go to **Basic Information** -> **App-Level Tokens** and generate a token with the `connections:write` scope. This is your `SLACK_APP_TOKEN`.
 5. Go to **OAuth & Permissions** and click **Install to Workspace**. Copy the generated `Bot User OAuth Token`. This is your `SLACK_BOT_TOKEN`.
 
