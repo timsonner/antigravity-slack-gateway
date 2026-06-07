@@ -36,18 +36,20 @@ To register your gateway with Slack:
 
 ### 4. Configuration
 
-Copy the template environment file and fill in your keys:
+Copy the example environment file and fill in your keys:
 
 ```bash
-cp .env.template .env
+cp example.env .env
 ```
 
-Edit the newly created `.env` file with your Slack tokens:
+Edit the newly created `.env` file:
 
 ```env
 SLACK_BOT_TOKEN=xoxb-your-bot-token
 SLACK_APP_TOKEN=xapp-your-app-token
-ANTIGRAVITY_WORKSPACE_ROOT=C:\Users\admin
+SLACK_ALLOWED_USERS=U01ABC2DEF3              # Comma-separated list of Slack user IDs
+SLACK_HOME_CHANNEL=                          # Default channel for system messages (optional)
+SLACK_HOME_CHANNEL_NAME=general
 ```
 
 ### 5. Running the Gateway
