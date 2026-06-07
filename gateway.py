@@ -35,10 +35,10 @@ SLACK_ALLOWED_USERS = set(
 )
 
 # Resolve Antigravity binary path
-# Default: %LOCALAPPDATA%\agy\bin\antigravity.bat
+# Default: %LOCALAPPDATA%\agy\bin\agy.exe
 DEFAULT_BIN_PATH = os.path.join(
     os.environ.get("LOCALAPPDATA", os.path.join(os.path.expanduser("~"), "AppData", "Local")),
-    "agy", "bin", "antigravity.bat"
+    "agy", "bin", "agy.exe"
 )
 ANTIGRAVITY_BIN = os.environ.get("ANTIGRAVITY_BIN", DEFAULT_BIN_PATH)
 
@@ -458,7 +458,7 @@ def slash_antigravity(ack, body, say):
         say(text="⚠️ An active task is already executing in this session.", thread_ts=thread_ts)
         return
         
-    say(text=f"🤖 Working on it... (Workspace: `{session['workspace']}`)", thread_ts=thread_ts)
+    say(text=f"🤖 *Task Received.* I am spawning an Antigravity agent in the workspace: `{session['workspace']}`. I'll post the results here shortly! ⚙️", thread_ts=thread_ts)
     t = threading.Thread(
         target=run_agent_in_background,
         args=(session_key, text, say, thread_ts),
@@ -497,7 +497,7 @@ def handle_app_mentions(event, say):
         return
 
     say(
-        text=f"🤖 *Task Received.* Running in workspace: `{session['workspace']}`... ⚙️",
+        text=f"🤖 *Task Received.* I am spawning an Antigravity agent in the workspace: `{session['workspace']}`. I'll post the results here shortly! ⚙️",
         thread_ts=thread_ts
     )
 
@@ -547,7 +547,7 @@ def handle_message_events(event, say):
         return
 
     say(
-        text=f"🤖 Working on it... (Workspace: `{session['workspace']}`)",
+        text=f"🤖 *Thinking...* I've started the agent in workspace: `{session['workspace']}`. Response will follow! ⚙️",
         thread_ts=thread_ts
     )
 

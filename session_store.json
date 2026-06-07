@@ -1,0 +1,22 @@
+{
+  "C0B8U3ZGE7L_1780820658.882019": {
+    "workspace": "C:\\Users\\admin\\slack_workspaces\\proj_1780820660_4fca8c9c",
+    "conversation_id": "slack_C0B8U3ZGE7L_1780820658_882019",
+    "created_at": 1780820660.6280384,
+    "last_active": 1780820660.9909866,
+    "active_task": "Welcome to the team!",
+    "model": "gemini-2.5-flash",
+    "skip_permissions": true,
+    "use_sandbox": false
+  },
+  "C0B8U3ZGE7L_1780820934.036579": {
+    "workspace": "C:\\Users\\admin\\slack_workspaces\\proj_1780820934_c0b4117b",
+    "conversation_id": "slack_C0B8U3ZGE7L_1780820934_036579",
+    "created_at": 1780820934.9178731,
+    "last_active": 1780820935.1923006,
+    "active_task": "what is your status?",
+    "model": "gemini-2.5-flash",
+    "skip_permissions": true,
+    "use_sandbox": false
+  }
+}
